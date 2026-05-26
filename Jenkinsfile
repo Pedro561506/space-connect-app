@@ -25,9 +25,13 @@ pipeline {
                 echo 'Executando teste automatizado no endpoint /health...'
                 sh '''
                     docker rm -f $TEST_CONTAINER_NAME || true
+
                     docker run -d --name $TEST_CONTAINER_NAME -p $TEST_PORT:5000 $IMAGE_NAME:$IMAGE_TAG
-                    sleep 5
-                    curl -f http://localhost:$TEST_PORT/health
+
+                    sleep 8
+
+                    curl -f http://host.docker.internal:$TEST_PORT/health
+
                     docker rm -f $TEST_CONTAINER_NAME
                 '''
             }
@@ -38,9 +42,12 @@ pipeline {
                 echo 'Executando deploy simulado da aplicação...'
                 sh '''
                     docker rm -f $CONTAINER_NAME || true
+
                     docker run -d --name $CONTAINER_NAME -p $APP_PORT:5000 $IMAGE_NAME:$IMAGE_TAG
-                    sleep 5
-                    curl -f http://localhost:$APP_PORT/
+
+                    sleep 8
+
+                    curl -f http://host.docker.internal:$APP_PORT/
                 '''
             }
         }

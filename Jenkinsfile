@@ -1,33 +1,61 @@
-Started by user Pedro de Carvalho Gonçalves
-Obtained Jenkinsfile from git https://github.com/Pedro561506/space-connect-app.git
-org.codehaus.groovy.control.MultipleCompilationErrorsException: startup failed:
-WorkflowScript: 68: expecting EOF, found ':' @ line 68, column 15.
-   }curl.exe http://localhost:5000
-                 ^
+pipeline {
+    agent any
 
-1 error
+    environment {
+        IMAGE_NAME = 'space-connect-app'
+        IMAGE_TAG = '1.0'
+        CONTAINER_NAME = 'space-connect-app'
+        TEST_CONTAINER_NAME = 'space-connect-app-test'
+        APP_PORT = '5000'
+        TEST_PORT = '5001'
+    }
 
-	at org.codehaus.groovy.control.ErrorCollector.failIfErrors(ErrorCollector.java:309)
-	at org.codehaus.groovy.control.ErrorCollector.addFatalError(ErrorCollector.java:149)
-	at org.codehaus.groovy.control.ErrorCollector.addError(ErrorCollector.java:119)
-	at org.codehaus.groovy.control.ErrorCollector.addError(ErrorCollector.java:131)
-	at org.codehaus.groovy.control.SourceUnit.addError(SourceUnit.java:349)
-	at org.codehaus.groovy.antlr.AntlrParserPlugin.transformCSTIntoAST(AntlrParserPlugin.java:225)
-	at org.codehaus.groovy.antlr.AntlrParserPlugin.parseCST(AntlrParserPlugin.java:191)
-	at org.codehaus.groovy.control.SourceUnit.parse(SourceUnit.java:233)
-	at org.codehaus.groovy.control.CompilationUnit$1.call(CompilationUnit.java:189)
-	at org.codehaus.groovy.control.CompilationUnit.applyToSourceUnits(CompilationUnit.java:966)
-	at org.codehaus.groovy.control.CompilationUnit.doPhaseOperation(CompilationUnit.java:626)
-	at org.codehaus.groovy.control.CompilationUnit.processPhaseOperations(CompilationUnit.java:602)
-	at org.codehaus.groovy.control.CompilationUnit.compile(CompilationUnit.java:579)
-	at groovy.lang.GroovyClassLoader.doParseClass(GroovyClassLoader.java:323)
-	at groovy.lang.GroovyClassLoader.parseClass(GroovyClassLoader.java:293)
-	at PluginClassLoader for script-security//org.jenkinsci.plugins.scriptsecurity.sandbox.groovy.GroovySandbox$Scope.parse(GroovySandbox.java:162)
-	at PluginClassLoader for workflow-cps//org.jenkinsci.plugins.workflow.cps.CpsGroovyShell.doParse(CpsGroovyShell.java:202)
-	at PluginClassLoader for workflow-cps//org.jenkinsci.plugins.workflow.cps.CpsGroovyShell.reparse(CpsGroovyShell.java:186)
-	at PluginClassLoader for workflow-cps//org.jenkinsci.plugins.workflow.cps.CpsFlowExecution.parseScript(CpsFlowExecution.java:670)
-	at PluginClassLoader for workflow-cps//org.jenkinsci.plugins.workflow.cps.CpsFlowExecution.start(CpsFlowExecution.java:616)
-	at PluginClassLoader for workflow-job//org.jenkinsci.plugins.workflow.job.WorkflowRun.run(WorkflowRun.java:344)
-	at hudson.model.ResourceController.execute(ResourceController.java:97)
-	at hudson.model.Executor.run(Executor.java:456)
-Finished: FAILURE
+    stages {
+        stage('Build') {
+            steps {
+                echo 'Iniciando build da imagem Docker...'
+                sh '''
+                    docker build -t $IMAGE_NAME:$IMAGE_TAG .
+                '''
+            }
+        }
+
+        stage('Test') {
+            steps {
+                echo 'Executando teste automatizado no endpoint /health...'
+                sh '''
+                    docker rm -f $TEST_CONTAINER_NAME || true
+                    docker run -d --name $TEST_CONTAINER_NAME -p $TEST_PORT:5000 $IMAGE_NAME:$IMAGE_TAG
+                    sleep 5
+                    curl -f http://localhost:$TEST_PORT/health
+                    docker rm -f $TEST_CONTAINER_NAME
+                '''
+            }
+        }
+
+        stage('Deploy Simulado') {
+            steps {
+                echo 'Executando deploy simulado da aplicação...'
+                sh '''
+                    docker rm -f $CONTAINER_NAME || true
+                    docker run -d --name $CONTAINER_NAME -p $APP_PORT:5000 $IMAGE_NAME:$IMAGE_TAG
+                    sleep 5
+                    curl -f http://localhost:$APP_PORT/
+                '''
+            }
+        }
+    }
+
+    post {
+        success {
+            echo 'Pipeline executada com sucesso.'
+        }
+
+        failure {
+            echo 'Pipeline falhou. Verifique os logs.'
+            sh '''
+                docker rm -f $TEST_CONTAINER_NAME || true
+            '''
+        }
+    }
+}
